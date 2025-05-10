@@ -110,186 +110,181 @@ export default function FPLAdvisorClient() {
       setError(err.message);
       setStructuredAdvice(null);
     }
-    setIsLoading(false);
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 500);
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-8">
-      <div className="text-center mb-12">
-        {/* Logo Display */}
-        <div className="mb-6 flex justify-center">
-          <Image
-            src="/logo2.png" // Path to your logo in the public folder
-            alt="FPL Advisor Logo"
-            width={100} // Adjust size as needed
-            height={100} // Adjust size as needed
-            className={`
-              rounded-full 
-              shadow-lg
-              ${isLoading ? "animate-spin" : ""}
-            `}
-            priority // Optional: if logo is above the fold
-          />
-        </div>
-
-        <h1 className="text-4xl sm:text-5xl font-bold mb-6 text-gray-800 dark:text-white">
-          FPL Advisor
-        </h1>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8 max-w-md mx-auto">
-          <div>
-            <label
-              htmlFor="teamId"
-              className="block text-lg font-medium text-gray-700 dark:text-gray-300 mb-2"
-            >
-              FPL Team ID:
-            </label>
-            <input
-              type="text" // Changed to text to allow leading zeros if any, though FPL IDs are numbers
-              id="teamId"
-              name="teamId"
-              value={teamId}
-              onChange={(e) => setTeamId(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-center text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="e.g., 5253307"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="freeTransfers"
-              className="block text-lg font-medium text-gray-700 dark:text-gray-300 mb-2"
-            >
-              Free Transfers
-            </label>
-            <input
-              type="number"
-              id="freeTransfers"
-              name="freeTransfers"
-              value={manualFreeTransfers}
-              onChange={(e) => setManualFreeTransfers(e.target.value)}
-              min="0"
-              max="15"
-              className="mt-1 block w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-center text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-        </div>
-
-        <button
-          onClick={fetchAdvice}
-          disabled={isLoading}
-          className={`
-            px-8 py-4 sm:px-10 sm:py-5
-            text-xl sm:text-2xl font-semibold 
-            text-white
-            bg-gradient-to-r from-blue-500 to-indigo-600 
-            hover:from-blue-600 hover:to-indigo-700 
-            dark:from-blue-400 dark:to-indigo-500
-            dark:hover:from-blue-500 dark:hover:to-indigo-600
-            rounded-xl 
-            shadow-lg 
-            hover:shadow-xl 
-            cursor-pointer
-            focus:outline-none 
-            focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-800
-            transform transition-all duration-150 ease-in-out
-            hover:scale-105 
-            active:scale-95
-            disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none
-            flex items-center justify-center mx-auto  // For centering icon and text if button content changes
-          `}
-        >
-          {isLoading && ( // Show spinner inside button ONLY if you want it there instead of main logo
-            <svg
-              className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
-          )}
-          {isLoading ? "Getting Advice..." : "Advise on Next Gameweek"}
-        </button>
-      </div>
-
-      {error && (
-        <div
-          className="mt-8 p-5 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-md shadow-md dark:bg-red-900 dark:text-red-200 dark:border-red-700"
-          role="alert"
-        >
-          <strong className="font-bold block text-lg">Error:</strong>
-          <span className="block mt-1 whitespace-pre-wrap">{error}</span>{" "}
-          {/* Allow error to wrap */}
+    <div className="w-full max-w-4xl mx-auto px-4 py-8 relative">
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center z-50 transition-opacity duration-300 ease-in-out">
+          <video
+            src="/loading.mp4"
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full max-w-xs sm:max-w-sm md:max-w-md rounded-lg shadow-2xl"
+          >
+            Your browser does not support the video tag.
+          </video>
+          <p className="mt-4 text-white text-xl animate-pulse">
+            Getting latest FPL advice...
+          </p>
         </div>
       )}
 
-      {structuredAdvice && !error && !isLoading && (
-        <div className="mt-10 space-y-8">
-          {apiMeta?.currentGameweek && (
-            <div className="text-center mb-8 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg shadow">
-              <p className="text-lg text-gray-700 dark:text-gray-300">
-                Advice for{" "}
-                <strong>
-                  Gameweek{" "}
-                  {apiMeta.nextGameweekForAdvice || apiMeta.currentGameweek}
-                </strong>{" "}
-                (Current GW: {apiMeta.currentGameweek}).
-              </p>
-              {/* Display user-provided FTs if they were used (or inferred by AI if we kept that field) */}
-              {manualFreeTransfers !== "" &&
-                !isNaN(parseInt(manualFreeTransfers)) && (
-                  <p className="text-md text-blue-600 dark:text-blue-400 font-semibold mt-1">
-                    Using {manualFreeTransfers} Free Transfer(s) as provided.
-                  </p>
-                )}
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Team ID: {teamId}
-              </p>
+      <div
+        className={`${
+          isLoading ? "opacity-0" : "opacity-100"
+        } transition-opacity duration-300 ease-in-out`}
+      >
+        <div className="text-center mb-12">
+          <div className="mb-6 flex justify-center">
+            <Image
+              src="/logo2.png"
+              alt="FPL Advisor Logo"
+              width={100}
+              height={100}
+              className="rounded-full shadow-lg"
+              priority
+            />
+          </div>
+
+          <h1 className="text-4xl sm:text-5xl font-bold mb-6 text-gray-800 dark:text-white">
+            FPL Advisor
+          </h1>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8 max-w-md mx-auto">
+            <div>
+              <label
+                htmlFor="teamId"
+                className="block text-lg font-medium text-gray-700 dark:text-gray-300 mb-2"
+              >
+                FPL Team ID:
+              </label>
+              <input
+                type="text"
+                id="teamId"
+                name="teamId"
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+                className="mt-1 block w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-center text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="e.g., 5253307"
+              />
             </div>
-          )}
-          {/* New Card for Promising Teams */}
-          <AdviceSectionCard
-            title="Promising Teams (Next GW)"
-            content={structuredAdvice.promisingTeamsNextGW}
-          />
-          <AdviceSectionCard
-            title="Transfer Strategy"
-            content={structuredAdvice.transferStrategy}
-          />
-          <AdviceSectionCard
-            title="Captain and Vice-Captain"
-            content={structuredAdvice.captainPicks}
-          />
-          <AdviceSectionCard
-            title="Starting Lineup"
-            content={structuredAdvice.startingLineup}
-          />
-          <AdviceSectionCard
-            title="Bench Order"
-            content={structuredAdvice.benchOrder}
-          />
-          <AdviceSectionCard
-            title="Chip Strategy"
-            content={structuredAdvice.chipStrategy}
-          />
-          <AdviceSectionCard
-            title="Players to Watch"
-            content={structuredAdvice.playersToWatch}
-          />
+            <div>
+              <label
+                htmlFor="freeTransfers"
+                className="block text-lg font-medium text-gray-700 dark:text-gray-300 mb-2"
+              >
+                Free Transfers:
+              </label>
+              <input
+                type="number"
+                id="freeTransfers"
+                name="freeTransfers"
+                value={manualFreeTransfers}
+                onChange={(e) => setManualFreeTransfers(e.target.value)}
+                min="0"
+                max="15"
+                className="mt-1 block w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-center text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={fetchAdvice}
+            disabled={isLoading}
+            className={`
+              px-8 py-4 sm:px-10 sm:py-5
+              text-xl sm:text-2xl font-semibold 
+              text-white
+              bg-gradient-to-r from-blue-500 to-indigo-600 
+              hover:from-blue-600 hover:to-indigo-700 
+              dark:from-blue-400 dark:to-indigo-500
+              dark:hover:from-blue-500 dark:hover:to-indigo-600
+              rounded-xl 
+              shadow-lg 
+              hover:shadow-xl 
+              cursor-pointer
+              focus:outline-none 
+              focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-800
+              transform transition-all duration-150 ease-in-out
+              hover:scale-105 
+              active:scale-95
+              disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none
+            `}
+          >
+            {isLoading ? "Fetching Advice..." : "Advise on Next Gameweek"}
+          </button>
         </div>
-      )}
+
+        {error && (
+          <div
+            className="mt-8 p-5 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-md shadow-md dark:bg-red-900 dark:text-red-200 dark:border-red-700"
+            role="alert"
+          >
+            <strong className="font-bold block text-lg">Error:</strong>
+            <span className="block mt-1 whitespace-pre-wrap">{error}</span>
+          </div>
+        )}
+
+        {structuredAdvice && !error && !isLoading && (
+          <div className="mt-10 space-y-8">
+            {apiMeta?.currentGameweek && (
+              <div className="text-center mb-8 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg shadow">
+                <p className="text-lg text-gray-700 dark:text-gray-300">
+                  Advice for{" "}
+                  <strong>
+                    Gameweek{" "}
+                    {apiMeta.nextGameweekForAdvice || apiMeta.currentGameweek}
+                  </strong>{" "}
+                  (Current GW: {apiMeta.currentGameweek}).
+                </p>
+                {manualFreeTransfers !== "" &&
+                  !isNaN(parseInt(manualFreeTransfers)) && (
+                    <p className="text-md text-blue-600 dark:text-blue-400 font-semibold mt-1">
+                      Using {manualFreeTransfers} Free Transfer(s) as provided.
+                    </p>
+                  )}
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Team ID: {teamId}
+                </p>
+              </div>
+            )}
+            <AdviceSectionCard
+              title="Promising Teams (Next GW)"
+              content={structuredAdvice.promisingTeamsNextGW}
+            />
+            <AdviceSectionCard
+              title="Transfer Strategy"
+              content={structuredAdvice.transferStrategy}
+            />
+            <AdviceSectionCard
+              title="Captain and Vice-Captain"
+              content={structuredAdvice.captainPicks}
+            />
+            <AdviceSectionCard
+              title="Starting Lineup"
+              content={structuredAdvice.startingLineup}
+            />
+            <AdviceSectionCard
+              title="Bench Order"
+              content={structuredAdvice.benchOrder}
+            />
+            <AdviceSectionCard
+              title="Chip Strategy"
+              content={structuredAdvice.chipStrategy}
+            />
+            <AdviceSectionCard
+              title="Players to Watch"
+              content={structuredAdvice.playersToWatch}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
