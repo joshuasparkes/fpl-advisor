@@ -16,7 +16,7 @@ export const metadata = {
   description:
     "FPL Advisor is a tool that helps you make the best possible decisions for your Fantasy Premier League team.",
   icons: {
-    icon: "/logo2.png",
+    icon: "/logo2.ico",
   },
 };
 
