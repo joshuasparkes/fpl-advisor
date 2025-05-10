@@ -48,18 +48,23 @@ async function fetchAllFixtures() {
 }
 
 // 3. Fetch User's Picks (equivalent to fetch_my_picks in Python)
-async function fetchMyPicks(gameweek) {
-  if (!FPL_TEAM_ID || !FPL_SESSION) {
-    console.log("FPL_TEAM_ID or FPL_SESSION not set. Skipping fetchMyPicks.");
+async function fetchMyPicks(gameweek, teamIdToUse) {
+  if (!teamIdToUse || !FPL_SESSION) {
+    console.log(
+      "FPL Team ID from UI/env or FPL_SESSION not set. Skipping fetchMyPicks."
+    );
     return null;
   }
-  const url = `${FPL_BASE_URL}/entry/${FPL_TEAM_ID}/event/${gameweek}/picks/`;
+  const url = `${FPL_BASE_URL}/entry/${teamIdToUse}/event/${gameweek}/picks/`;
   const options = {
     headers: {
       Cookie: `sessionid=${FPL_SESSION}`, // Corrected cookie format for FPL
     },
   };
-  console.log(`Fetching user picks for GW ${gameweek} from:`, url);
+  console.log(
+    `Fetching user picks for GW ${gameweek} (Team ID: ${teamIdToUse}) from:`,
+    url
+  );
   return await fetchData(url, options);
 }
 
@@ -157,18 +162,46 @@ function buildFPLGeneralSummary(
   };
 }
 
-function constructOpenAIPrompt(userContext, fplGeneralSummary) {
-  const transfersMade = userContext.transfers_made_this_gw || 0;
-  const freeTransfersAvailable = transfersMade === 0 ? 1 : 0; // Simplified
+// Modified prompt for JSON output
+function constructOpenAIPromptForJSON(
+  userContext,
+  fplGeneralSummary,
+  manualFreeTransfers
+) {
+  // Use manualFreeTransfers if provided, otherwise default or indicate it needs inferring by AI (though we prefer user input now)
+  const ftForPrompt =
+    manualFreeTransfers !== null && manualFreeTransfers !== undefined
+      ? manualFreeTransfers
+      : "Not specified by user; assume 1 FT if unsure, but confirm with user if critical.";
 
-  // Using template literals for a multi-line string
-  return `You are an expert Fantasy Premier League (FPL) assistant. Your goal is to provide the best possible advice for the upcoming gameweek. Use all the provided context extensively.
+  // This is the general instruction and context.
+  // The key is to also tell the model to respond in JSON format with specific keys.
+  const instruction = `You are an expert Fantasy Premier League (FPL) assistant. Your goal is to provide the best possible advice for the upcoming gameweek.
+Use all the provided context extensively.
 
+The user has indicated they have "${ftForPrompt}" free transfers available for the *next* gameweek you are advising on.
+The "Transfers Made This Gameweek" field in the user context refers to transfers made in the *current or most recently completed* gameweek.
+
+Respond with a JSON object containing the following keys:
+- "promisingTeamsNextGW": (string) Based on the "Upcoming Fixtures (Next GW)" data, identify 2-3 teams that have the most favorable fixtures and are likely to score well (e.g., high chance of goals, clean sheets). Briefly explain your reasoning for each team, considering home/away advantage and fixture difficulty ratings.
+- "transferStrategy": (string) Detailed transfer advice. Suggest specific players to TRANSFER OUT from the "Current Squad" and specific players to TRANSFER IN. **All players suggested for transfer IN must be actual FPL players with a listed FPL position (Goalkeeper, Defender, Midfielder, Forward); do not suggest managers or other non-player personnel.** Justify transfer-in suggestions with strong reasoning based on individual player form (refer to "Sample of Top Performing Players" if relevant), ICT index, expected stats, value for money, and upcoming fixture difficulty. Prioritize players from teams that are generally strong or in good form. Avoid suggesting players from poorly performing teams based solely on one easy fixture, unless the player is an exceptional individual talent. Consider "Promising Teams (Next GW)" but weigh it against overall team/player quality. Base your strategy on the user-provided free transfers: ${ftForPrompt}. If no transfers are urgent, state that and advise rolling a transfer.
+- "captainPicks": (string) Captain and vice-captain nominations with justifications. Ensure these are players from the user's squad (after any recommended transfers).
+- "startingLineup": (string) From the user's "Current Squad" (after considering your "Transfer Strategy" recommendations if any transfers IN are made), recommend the optimal starting 11 players. **All players listed must be from the user's squad list (potentially modified by your transfer suggestions) and must be actual FPL players with known FPL positions, not managers or other non-player personnel.** List the 11 player names.
+- "benchOrder": (string) Recommended bench order from the remaining players in the user's squad (after transfers and starting 11 selection).
+- "chipStrategy": (string) Advice on chip usage for the next gameweek.
+- "playersToWatch": (string) 1-2 players (actual FPL players) to watch for future gameweeks.
+
+Ensure the content for each key is a descriptive string.
+`;
+
+  const fplDataContext = `
 ## User's FPL Team Context:
 - Current Squad: ${JSON.stringify(userContext.team_picks, null, 2)}
 - Money in Bank: £${userContext.bank}m
-- Transfers Made This Gameweek: ${userContext.transfers_made_this_gw}
-- (Simplified) Free Transfers Available: ${freeTransfersAvailable}
+- Transfers Made This Gameweek (in current/past GW): ${
+    userContext.transfers_made_this_gw
+  } 
+- Free Transfers Available (for NEXT GW, user-provided): ${ftForPrompt}
 - Active Chip for Current GW: ${userContext.active_chip || "None"}
 - Available Chips for Future Use: ${
     userContext.available_chips.join(", ") || "None"
@@ -186,27 +219,22 @@ function constructOpenAIPrompt(userContext, fplGeneralSummary) {
     null,
     2
   )}
-
-## Your Task:
-Based on *all* the above information, provide comprehensive advice for the next gameweek, including:
-1.  **Transfer Strategy**: 
-    *   Suggest specific player(s) to TRANSFER OUT from the user's current squad.
-    *   Suggest specific player(s) to TRANSFER IN. Justify with form, ICT, expected stats, upcoming fixtures (both individual and team), and value. Consider the number of free transfers.
-    *   If no transfers are urgent, state that and advise rolling a transfer if applicable.
-2.  **Captain and Vice-Captain**: Nominate a Captain and Vice-Captain from the user's squad for the next gameweek. Justify with strong reasoning based on form, fixture difficulty, and potential for high returns.
-3.  **Starting Lineup (11 players)**: Recommend the optimal starting lineup from the user's squad.
-4.  **Bench Order (remaining players)**: Recommend the bench order.
-5.  **Chip Strategy**: If one of the 'Available Chips' (${
-    userContext.available_chips.join(", ") || "None"
-  }) seems highly advantageous for the *next* gameweek given the fixtures and team status, recommend its use and explain why. Otherwise, advise saving chips.
-6.  **Players to Watch**: Briefly mention 1-2 players (not necessarily for immediate transfer) the user should keep an eye on for future gameweeks based on form or fixture swings.
-
-Respond in a clear, structured format. Be specific with player names. Explain your reasoning thoroughly for each recommendation.`;
+`;
+  return instruction + fplDataContext;
 }
 
 export async function GET(request) {
   try {
-    console.log("--- Starting FPL Advisor API Call ---");
+    const { searchParams } = new URL(request.url);
+    const manualFreeTransfersInput = searchParams.get("freeTransfers");
+    const teamIdFromUI = searchParams.get("teamId");
+
+    // Determine which Team ID to use: UI input or fallback to environment variable
+    const teamIdToUse = teamIdFromUI || FPL_TEAM_ID;
+
+    console.log(
+      `--- Starting FPL Advisor API Call (Team ID: ${teamIdToUse}, User FTs: ${manualFreeTransfersInput}) ---`
+    );
     if (!OPENAI_API_KEY || !openai) {
       return NextResponse.json(
         { error: "OpenAI API key not configured." },
@@ -216,6 +244,18 @@ export async function GET(request) {
     if (!FPL_BASE_URL) {
       return NextResponse.json(
         { error: "FPL Base URL not configured." },
+        { status: 500 }
+      );
+    }
+    if (!teamIdToUse) {
+      return NextResponse.json(
+        { error: "FPL Team ID not configured or provided." },
+        { status: 500 }
+      );
+    }
+    if (!FPL_SESSION) {
+      return NextResponse.json(
+        { error: "FPL Session ID not configured." },
         { status: 500 }
       );
     }
@@ -246,9 +286,8 @@ export async function GET(request) {
     console.log("Current Gameweek ID:", currentGameweekId);
     console.log("Next Gameweek ID for planning:", nextGameweekId);
 
-    const myPicksRaw = await fetchMyPicks(currentGameweekId);
-
-    let aiSuggestionText;
+    const myPicksRaw = await fetchMyPicks(currentGameweekId, teamIdToUse);
+    let aiSuggestionObject = null; // Will store the parsed JSON object
 
     if (myPicksRaw) {
       const userFPLContext = buildUserFPLContext(myPicksRaw, bootstrapData);
@@ -257,42 +296,78 @@ export async function GET(request) {
         allFixturesData,
         nextGameweekId
       );
-      const prompt = constructOpenAIPrompt(userFPLContext, fplGeneralSummary);
 
-      // console.log("--- Constructed OpenAI Prompt ---");
-      // console.log(prompt); // For debugging the prompt
+      // Pass manualFreeTransfersInput to the prompt constructor
+      const prompt = constructOpenAIPromptForJSON(
+        userFPLContext,
+        fplGeneralSummary,
+        manualFreeTransfersInput
+      );
 
-      console.log("Sending request to OpenAI...");
+      console.log(
+        "Sending request to OpenAI (with refined player selection instructions)..."
+      );
       const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo", // Or your preferred model
+        model: "gpt-3.5-turbo-0125", // Ensure this model supports JSON mode
         messages: [
-          {
-            role: "system",
-            content:
-              "You are an expert FPL assistant. Provide clear, actionable advice.",
-          },
+          // The instruction for JSON output is now part of the user prompt
           { role: "user", content: prompt },
         ],
         temperature: 0.7,
+        response_format: { type: "json_object" }, // Enable JSON mode
       });
-      aiSuggestionText = completion.choices[0].message.content;
-      console.log("Received suggestion from OpenAI.");
+
+      const messageContent = completion.choices[0].message.content;
+      if (messageContent) {
+        try {
+          aiSuggestionObject = JSON.parse(messageContent);
+          console.log("Received and parsed JSON suggestion from OpenAI.");
+        } catch (e) {
+          console.error("Failed to parse JSON response from OpenAI:", e);
+          console.error("OpenAI raw response:", messageContent);
+          aiSuggestionObject = {
+            error:
+              "Failed to parse AI response. The AI did not return valid JSON.",
+            rawResponse: messageContent,
+          };
+        }
+      } else {
+        aiSuggestionObject = { error: "OpenAI returned an empty message." };
+      }
     } else {
-      aiSuggestionText =
-        "Cannot provide personalized FPL advice. Please ensure FPL_TEAM_ID and FPL_SESSION environment variables are correctly set and your FPL team is accessible.";
-      console.log("User picks not available, returning default message.");
+      aiSuggestionObject = {
+        error: `Cannot provide personalized FPL advice. FPL User data not available for Team ID: ${teamIdToUse}. Ensure FPL_SESSION is valid.`,
+        promisingTeamsNextGW: "N/A - General data not available.",
+        transferStrategy: "N/A - User data not available.",
+        captainPicks: "N/A - User data not available.",
+        startingLineup: "N/A - User data not available.",
+        benchOrder: "N/A - User data not available.",
+        chipStrategy: "N/A - User data not available.",
+        playersToWatch: "N/A - User data not available.",
+      };
+      console.log(
+        "User picks not available, returning default JSON structure."
+      );
     }
 
     return NextResponse.json({
       message: "FPL Advisor API request processed.",
       currentGameweek: currentGameweekId,
       nextGameweekForAdvice: nextGameweekId,
-      aiSuggestion: aiSuggestionText,
+      teamIdUsed: teamIdToUse,
+      aiStructuredSuggestion: aiSuggestionObject, // Send the object directly
     });
   } catch (error) {
     console.error("Error in FPL Advisor API:", error.message, error.stack);
+    // Ensure a default error structure if aiSuggestionObject wasn't set
+    const errorResponse = aiSuggestionObject || {
+      error: error.message || "An internal server error occurred",
+    };
     return NextResponse.json(
-      { error: error.message || "An internal server error occurred" },
+      {
+        error: error.message || "An internal server error occurred",
+        aiStructuredSuggestion: errorResponse, // Send a structured error
+      },
       { status: 500 }
     );
   }
